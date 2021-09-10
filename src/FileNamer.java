@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -23,25 +24,29 @@ String target, fileExtension, directory;
 
 String[] modes = {"Remove", "Replace", "Append", "Prepend"};
 
-Path oldPath, newPath;
+Path directoryPath, oldPath, newPath;
 
-JComboBox modeBox;
+JComboBox<String> modeBox;
+
 boolean isReplace;
 
 FileNamer(){
 	frame = new JFrame();
 	fc = new JFileChooser();
+	fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+	
 	directoryLabel = new JLabel("Diectory");
-	directoryField = new JTextField();
-
 	targetLabel = new JLabel("Remove:");
+	replacementLabel = new JLabel("With:");
+	
+	directoryField = new JTextField();
 	targetField = new JTextField();
 	replacementField = new JTextField();
 	
 	directoryButton = new JButton("Directory");
 	startButton = new JButton("Start");
 	
-	modeBox = new JComboBox(modes);
+	modeBox = new JComboBox<>(modes);
 	modeBox.setBounds(450, 120, 75, 25);
 	modeBox.addActionListener(this);
 	isReplace = false;
@@ -50,11 +55,8 @@ FileNamer(){
 	frame.setLayout(null);
 	frame.setVisible(true);
 
-	fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-
 	directoryLabel.setBounds(10, 40, 100, 30);
 	targetLabel.setBounds(10, 120, 100, 30);
-	replacementLabel = new JLabel("With:");
 	replacementLabel.setBounds(10, 160, 100, 30);
 
 	directoryField.setBounds(140, 40, 300, 30);
@@ -86,14 +88,50 @@ public void actionPerformed(ActionEvent e)
 {
 	if(e.getSource() == directoryButton)
 	{
-		int directory = fc.showOpenDialog(frame);
+		fc.showOpenDialog(frame);
 		directoryField.setText(fc.getSelectedFile().toPath().toString());
 	}
 	else if(e.getSource() == startButton)
 	{
 		System.out.println("Start");
 		directory = directoryField.getText();
-		RenameFiles();
+		
+		if(directory.isEmpty())
+		{
+			System.out.println("No directory selected");
+			return;
+		}
+		
+		directoryPath = Paths.get(directory);
+		
+		if(Files.exists(directoryPath))
+		{
+			if(IsValidInput(targetField.getText().toString()))
+			{
+				if(!isReplace)
+				{
+					RenameFiles();
+				}
+				else
+				{
+					if(IsValidInput(replacementField.getText().toString()))
+					{
+						RenameFiles();
+					}
+				}
+
+			}
+			else
+			{
+				
+			}
+			
+
+		}
+		else
+		{
+			System.out.println("Invalid Directory");
+		}
 	}
 	else if(e.getSource() == modeBox)
 	{
@@ -115,16 +153,36 @@ public void actionPerformed(ActionEvent e)
 			if(!isReplace)
 			{
 				isReplace = true;
-				targetLabel.setText("Replace: ");
-				frame.add(replacementField);
-				frame.add(replacementLabel);
-				startButton.setBounds(250, 200, 100, 30);
-				frame.repaint();
+				ShowReplacementField();
 			}
+			break;
 		default:
 			break;
 		}
 	}
+}
+
+boolean IsValidInput(String input)
+{
+	try 
+	{
+		Paths.get(input + ".txt");
+		return true;
+	}
+	catch(InvalidPathException ex)
+	{
+		System.out.println("Invalid filename");
+		return false;
+	}
+}
+
+void ShowReplacementField()
+{
+	targetLabel.setText("Replace: ");
+	frame.add(replacementField);
+	frame.add(replacementLabel);
+	startButton.setBounds(250, 200, 100, 30);
+	frame.repaint();
 }
 
 void HideReplacementField()
@@ -157,8 +215,6 @@ void RenameFiles()
 	default:
 		break;
 	}
-
-
 }
 
 void RemoveFromFileNames(String target, ArrayList<String> entries)
@@ -200,6 +256,18 @@ void ReplaceInFileNames(String toReplace, String replacement, ArrayList<String> 
 		newName = newName.replace(fileExtension, "");
 		newName = newName + fileExtension;
 		System.out.println("New Name: " + newName);
+		
+		oldPath = Paths.get(String.format("%s\\%s", directory, name));
+		newPath = Paths.get(String.format("%s\\%s", directory, newName));
+
+		try
+		{
+			Files.move(oldPath, newPath);
+		} 
+		catch (IOException e) 
+		{
+			e.printStackTrace();
+		}
 	}
 }
 
@@ -213,6 +281,18 @@ void AppendToFileNames(String toAppend, ArrayList<String> entries)
 		fileExtension = name.substring(name.length()-4);
 		newName = name.replace(fileExtension, toAppend + fileExtension);
 		System.out.println("New Name: " + newName);
+		
+		oldPath = Paths.get(String.format("%s\\%s", directory, name));
+		newPath = Paths.get(String.format("%s\\%s", directory, newName));
+
+		try
+		{
+			Files.move(oldPath, newPath);
+		} 
+		catch (IOException e) 
+		{
+			e.printStackTrace();
+		}
 	}
 }
 
@@ -225,11 +305,24 @@ void PrependToFileNames(String toPrepend, ArrayList<String> entries)
 		System.out.println("Old Name: " + name);
 		newName = toPrepend + name;
 		System.out.println("New Name: " + newName);
+		
+		oldPath = Paths.get(String.format("%s\\%s", directory, name));
+		newPath = Paths.get(String.format("%s\\%s", directory, newName));
+
+		try
+		{
+			Files.move(oldPath, newPath);
+		} 
+		catch (IOException e) 
+		{
+			e.printStackTrace();
+		}
 	}
 }
 
 ArrayList<String> GetFileList(String dir)
 {
+	System.out.println(dir);
 	File[] entries = new File(dir).listFiles();
 	ArrayList<String> result = new ArrayList<String>();
 	for(File file : entries)
