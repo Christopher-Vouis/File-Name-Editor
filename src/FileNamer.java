@@ -1,4 +1,6 @@
 import javax.swing.*;
+
+import java.awt.Color;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
@@ -13,6 +15,8 @@ public class FileNamer implements ActionListener{
 JLabel directoryLabel, targetLabel, replacementLabel;
 	
 JTextField directoryField, targetField, replacementField;
+
+JTextArea beforePreview, afterPreview;
 
 JFrame frame;
 
@@ -32,6 +36,7 @@ boolean isReplace;
 
 FileNamer(){
 	frame = new JFrame();
+	frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 	fc = new JFileChooser();
 	fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 	
@@ -42,6 +47,8 @@ FileNamer(){
 	directoryField = new JTextField();
 	targetField = new JTextField();
 	replacementField = new JTextField();
+	beforePreview = new JTextArea();
+	afterPreview = new JTextArea();
 	
 	directoryButton = new JButton("Directory");
 	startButton = new JButton("Start");
@@ -51,7 +58,7 @@ FileNamer(){
 	modeBox.addActionListener(this);
 	isReplace = false;
 
-	frame.setSize(800,600);
+	frame.setSize(750,550);
 	frame.setLayout(null);
 	frame.setVisible(true);
 
@@ -61,14 +68,23 @@ FileNamer(){
 
 	directoryField.setBounds(140, 40, 300, 30);
 	directoryField.setEditable(false);
+	directoryField.setBackground(Color.white);
 	targetField.setBounds(140, 120, 300, 30);
 	replacementField.setBounds(140, 160, 300, 30);
 
 	directoryButton.setBounds(450, 40, 100, 30);
 	directoryButton.addActionListener(this);
 
-	startButton.setBounds(250, 160, 100, 30);
+	startButton.setBounds(325, 160, 100, 30);
 	startButton.addActionListener(this);
+	
+	beforePreview.setBounds(50, 275, 250, 200);
+	afterPreview.setBounds(430, 275, 250, 200);
+	beforePreview.setEditable(false);
+	afterPreview.setEditable(false);
+	beforePreview.setBackground(Color.white);
+	afterPreview.setBackground(Color.white);
+
 
 	frame.add(directoryLabel);
 	frame.add(targetLabel);
@@ -77,6 +93,8 @@ FileNamer(){
 	frame.add(directoryButton);
 	frame.add(startButton);
 	frame.add(modeBox);
+	frame.add(beforePreview);
+	frame.add(afterPreview);
 }
 
 public static void main(String[] args)
@@ -98,7 +116,7 @@ public void actionPerformed(ActionEvent e)
 		
 		if(directory.isEmpty())
 		{
-			System.out.println("No directory selected");
+			ShowErrorMessage("No directory selected");
 			return;
 		}
 		
@@ -119,18 +137,15 @@ public void actionPerformed(ActionEvent e)
 						RenameFiles();
 					}
 				}
-
 			}
 			else
 			{
-				
+				ShowErrorMessage("Invalid characters entered");
 			}
-			
-
 		}
 		else
 		{
-			System.out.println("Invalid Directory");
+			ShowErrorMessage("Invalid directory");
 		}
 	}
 	else if(e.getSource() == modeBox)
@@ -170,8 +185,7 @@ boolean IsValidInput(String input)
 		return true;
 	}
 	catch(InvalidPathException ex)
-	{
-		System.out.println("Invalid filename");
+	{ 
 		return false;
 	}
 }
@@ -333,6 +347,14 @@ ArrayList<String> GetFileList(String dir)
 		}
 	}
 	return result;
+}
+
+void ShowErrorMessage(String message)
+{
+	JOptionPane p = new JOptionPane();
+	p.setMessage(message);
+	JDialog alert = p.createDialog("Error");
+	alert.setVisible(true);	
 }
 
 }
