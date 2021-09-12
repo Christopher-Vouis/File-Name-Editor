@@ -1,4 +1,6 @@
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import java.awt.Color;
 import java.awt.event.*;
@@ -12,7 +14,7 @@ import java.nio.file.Paths;
 
 public class FileNamer implements ActionListener{
 
-JLabel directoryLabel, targetLabel, replacementLabel;
+JLabel directoryLabel, targetLabel, replacementLabel, beforeLabel, afterLabel;
 	
 JTextField directoryField, targetField, replacementField;
 
@@ -30,19 +32,52 @@ String[] modes = {"Remove", "Replace", "Append", "Prepend"};
 
 Path directoryPath, oldPath, newPath;
 
-JComboBox<String> modeBox;
+JComboBox<EditMode> modeBox;
 
+ArrayList<String> files;
 boolean isReplace;
 
+final int FRAME_WIDTH = 745, FRAME_HEIGHT = 500;
+
+@FunctionalInterface
+public interface TargetListener extends DocumentListener {
+    void update(DocumentEvent e);
+
+    @Override
+    default void insertUpdate(DocumentEvent e) {
+        update(e);
+    }
+    @Override
+    default void removeUpdate(DocumentEvent e) {
+        update(e);
+    }
+    @Override
+    default void changedUpdate(DocumentEvent e) {
+        update(e);
+    }
+}
+
+enum EditMode{
+	REMOVE,
+	REPLACE,
+	APPEND,
+	PREPEND
+}
+
 FileNamer(){
-	frame = new JFrame();
+	files = new ArrayList<String>();
+	directory = "";
+	
+	frame = new JFrame("File Renamer");
 	frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 	fc = new JFileChooser();
 	fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 	
-	directoryLabel = new JLabel("Diectory");
+	directoryLabel = new JLabel("Directory:");
 	targetLabel = new JLabel("Remove:");
 	replacementLabel = new JLabel("With:");
+	beforeLabel = new JLabel("Before:");
+	afterLabel = new JLabel("After:");
 	
 	directoryField = new JTextField();
 	targetField = new JTextField();
@@ -53,41 +88,48 @@ FileNamer(){
 	directoryButton = new JButton("Directory");
 	startButton = new JButton("Start");
 	
-	modeBox = new JComboBox<>(modes);
-	modeBox.setBounds(450, 120, 75, 25);
+
+	frame.setSize(FRAME_WIDTH, FRAME_HEIGHT);
+	frame.setLocationRelativeTo(null);
+	frame.setLayout(null);
+	frame.setVisible(true);
+	frame.setResizable(false);
+
+	directoryField.setBounds((FRAME_WIDTH / 2) - 175, 50, 300, 30);
+	directoryField.setEditable(false);
+	directoryField.setBackground(Color.white);
+	targetField.setBounds((FRAME_WIDTH / 2) - 175, 120, 300, 30);
+	replacementField.setBounds((FRAME_WIDTH / 2) - 175, 160, 300, 30);
+	
+	directoryLabel.setBounds(directoryField.getX() - 75, directoryField.getY(), 75, 30);
+	targetLabel.setBounds(targetField.getX() - 75, targetField.getY(), 75, 30);
+	replacementLabel.setBounds(replacementField.getX() - 75, replacementField.getY(), 75, 30);
+	beforeLabel.setBounds(50, 230, 100, 30);
+	afterLabel.setBounds(430, 230, 100, 30);
+
+	directoryButton.setBounds(directoryField.getX() + directoryField.getWidth() + 10, directoryField.getY(), 100, 30);
+	directoryButton.addActionListener(this);
+
+	startButton.setBounds((FRAME_WIDTH / 2) - 75, replacementField.getY() + replacementField.getHeight(), 100, 30);
+	startButton.addActionListener(this);
+	
+	modeBox = new JComboBox<>(EditMode.values());
+	modeBox.setBounds(targetField.getX() + targetField.getWidth() + 10, targetField.getY(), 110, 25);
 	modeBox.addActionListener(this);
 	isReplace = false;
 
-	frame.setSize(750,550);
-	frame.setLayout(null);
-	frame.setVisible(true);
-
-	directoryLabel.setBounds(10, 40, 100, 30);
-	targetLabel.setBounds(10, 120, 100, 30);
-	replacementLabel.setBounds(10, 160, 100, 30);
-
-	directoryField.setBounds(140, 40, 300, 30);
-	directoryField.setEditable(false);
-	directoryField.setBackground(Color.white);
-	targetField.setBounds(140, 120, 300, 30);
-	replacementField.setBounds(140, 160, 300, 30);
-
-	directoryButton.setBounds(450, 40, 100, 30);
-	directoryButton.addActionListener(this);
-
-	startButton.setBounds(325, 160, 100, 30);
-	startButton.addActionListener(this);
 	
-	beforePreview.setBounds(50, 275, 250, 200);
-	afterPreview.setBounds(430, 275, 250, 200);
+	beforePreview.setBounds(50, 260, 250, 160);
+	afterPreview.setBounds(430, 260, 250, 160);
 	beforePreview.setEditable(false);
 	afterPreview.setEditable(false);
 	beforePreview.setBackground(Color.white);
 	afterPreview.setBackground(Color.white);
 
-
 	frame.add(directoryLabel);
 	frame.add(targetLabel);
+	frame.add(beforeLabel);
+	frame.add(afterLabel);
 	frame.add(directoryField);
 	frame.add(targetField);
 	frame.add(directoryButton);
@@ -95,6 +137,13 @@ FileNamer(){
 	frame.add(modeBox);
 	frame.add(beforePreview);
 	frame.add(afterPreview);
+	
+	targetField.getDocument().addDocumentListener((TargetListener) e -> {
+		UpdateAfterPreview();
+		});	
+	replacementField.getDocument().addDocumentListener((TargetListener) e -> {
+		UpdateAfterPreview();
+		});
 }
 
 public static void main(String[] args)
@@ -107,13 +156,18 @@ public void actionPerformed(ActionEvent e)
 	if(e.getSource() == directoryButton)
 	{
 		fc.showOpenDialog(frame);
-		directoryField.setText(fc.getSelectedFile().toPath().toString());
+		File selectedDir = fc.getSelectedFile();
+		if(selectedDir != null)
+		{
+			directoryField.setText(selectedDir.toPath().toString());
+			directory = directoryField.getText();
+			files = GetFileList(directory);
+			UpdateBeforePreview();
+			UpdateAfterPreview();
+		}
 	}
 	else if(e.getSource() == startButton)
 	{
-		System.out.println("Start");
-		directory = directoryField.getText();
-		
 		if(directory.isEmpty())
 		{
 			ShowErrorMessage("No directory selected");
@@ -128,13 +182,19 @@ public void actionPerformed(ActionEvent e)
 			{
 				if(!isReplace)
 				{
-					RenameFiles();
+					if(ConfirmChoice())
+					{
+						RenameFiles();
+					}
 				}
 				else
 				{
 					if(IsValidInput(replacementField.getText().toString()))
 					{
-						RenameFiles();
+						if(ConfirmChoice())
+						{
+							RenameFiles();
+						}
 					}
 				}
 			}
@@ -150,21 +210,21 @@ public void actionPerformed(ActionEvent e)
 	}
 	else if(e.getSource() == modeBox)
 	{
-		switch(modeBox.getSelectedItem().toString())
+		switch((EditMode)modeBox.getSelectedItem())
 		{
-		case "Remove":
+		case REMOVE:
 			targetLabel.setText("Remove: ");
 			HideReplacementField();
 			break;
-		case "Append":
+		case APPEND:
 			targetLabel.setText("Append: ");
 			HideReplacementField();
 			break;
-		case "Prepend":
+		case PREPEND:
 			targetLabel.setText("Prepend: ");
 			HideReplacementField();
 			break;
-		case "Replace":
+		case REPLACE:
 			if(!isReplace)
 			{
 				isReplace = true;
@@ -174,6 +234,21 @@ public void actionPerformed(ActionEvent e)
 		default:
 			break;
 		}
+		
+		UpdateAfterPreview();
+	}
+}
+
+boolean ConfirmChoice()
+{
+	int choice = JOptionPane.showConfirmDialog(frame, "This may edit the names of some or all files in the chosen directory.\n\nAre you sure this is okay?", "WARNING", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+	if(choice == JOptionPane.YES_OPTION)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }
 
@@ -210,25 +285,28 @@ void HideReplacementField()
 
 void RenameFiles()
 {
-	ArrayList<String> entries = GetFileList(directory);
 	target = targetField.getText();
-	switch(modeBox.getSelectedItem().toString())
+	switch((EditMode)modeBox.getSelectedItem())
 	{
-	case "Remove":
-		RemoveFromFileNames(target, entries);
+	case REMOVE:
+		RemoveFromFileNames(target, files);
 		break;
-	case "Append":
-		AppendToFileNames(target, entries);
+	case APPEND:
+		AppendToFileNames(target, files);
 		break;
-	case "Prepend":
-		PrependToFileNames(target, entries);
+	case PREPEND:
+		PrependToFileNames(target, files);
 		break;
-	case "Replace":
-		ReplaceInFileNames(target, replacementField.getText().toString(), entries);
+	case REPLACE:
+		ReplaceInFileNames(target, replacementField.getText(), files);
 		break;
 	default:
 		break;
 	}
+	files = GetFileList(directory);
+	UpdateBeforePreview();
+	UpdateAfterPreview();
+	JOptionPane.showMessageDialog(null, "Files renamed", "Success!", JOptionPane.INFORMATION_MESSAGE);
 }
 
 void RemoveFromFileNames(String target, ArrayList<String> entries)
@@ -237,13 +315,7 @@ void RemoveFromFileNames(String target, ArrayList<String> entries)
 	
 	for(String name : entries)
 	{
-		System.out.println("Old Name: " + name);
-		newName = name.replace(target, "");
-		fileExtension = newName.substring(newName.length()-4);
-		newName = newName.replace(fileExtension, "");
-		newName = newName + fileExtension;
-		System.out.println("New Name: " + newName);
-		
+		newName = GetNewName(name, EditMode.REMOVE);
 		oldPath = Paths.get(String.format("%s\\%s", directory, name));
 		newPath = Paths.get(String.format("%s\\%s", directory, newName));
 
@@ -264,13 +336,7 @@ void ReplaceInFileNames(String toReplace, String replacement, ArrayList<String> 
 	
 	for(String name : entries)
 	{
-		System.out.println("Old Name: " + name);
-		newName = name.replace(toReplace, replacement);
-		fileExtension = newName.substring(newName.length()-4);
-		newName = newName.replace(fileExtension, "");
-		newName = newName + fileExtension;
-		System.out.println("New Name: " + newName);
-		
+		newName = GetNewName(name, EditMode.REPLACE);
 		oldPath = Paths.get(String.format("%s\\%s", directory, name));
 		newPath = Paths.get(String.format("%s\\%s", directory, newName));
 
@@ -291,11 +357,7 @@ void AppendToFileNames(String toAppend, ArrayList<String> entries)
 	
 	for(String name : entries)
 	{
-		System.out.println("Old Name: " + name);
-		fileExtension = name.substring(name.length()-4);
-		newName = name.replace(fileExtension, toAppend + fileExtension);
-		System.out.println("New Name: " + newName);
-		
+		newName = GetNewName(name, EditMode.APPEND);
 		oldPath = Paths.get(String.format("%s\\%s", directory, name));
 		newPath = Paths.get(String.format("%s\\%s", directory, newName));
 
@@ -316,10 +378,7 @@ void PrependToFileNames(String toPrepend, ArrayList<String> entries)
 	
 	for(String name : entries)
 	{
-		System.out.println("Old Name: " + name);
-		newName = toPrepend + name;
-		System.out.println("New Name: " + newName);
-		
+		newName = GetNewName(name, EditMode.PREPEND);
 		oldPath = Paths.get(String.format("%s\\%s", directory, name));
 		newPath = Paths.get(String.format("%s\\%s", directory, newName));
 
@@ -336,7 +395,6 @@ void PrependToFileNames(String toPrepend, ArrayList<String> entries)
 
 ArrayList<String> GetFileList(String dir)
 {
-	System.out.println(dir);
 	File[] entries = new File(dir).listFiles();
 	ArrayList<String> result = new ArrayList<String>();
 	for(File file : entries)
@@ -355,6 +413,62 @@ void ShowErrorMessage(String message)
 	p.setMessage(message);
 	JDialog alert = p.createDialog("Error");
 	alert.setVisible(true);	
+}
+
+void UpdateBeforePreview()
+{	
+	beforePreview.setText("");
+	for(int i = 0; i < 10; ++i)
+	{
+		if(i >= files.size())
+		{
+			return;
+		}
+		beforePreview.setText(beforePreview.getText() + files.get(i) + "\n");
+	}
+}
+
+void UpdateAfterPreview()
+{
+	afterPreview.setText("");
+	String newName;
+	for(int i = 0; i < 10; ++i)
+	{
+		if(i >= files.size())
+		{
+			return;
+		}
+		newName = GetNewName(files.get(i), (EditMode)modeBox.getSelectedItem());
+		afterPreview.setText(afterPreview.getText() + newName + "\n");
+	}
+}
+
+String GetNewName(String old, EditMode mode)
+{
+	String result = old;
+	fileExtension = old.substring(old.length()-4);
+	result = result.replace(fileExtension, "");
+	
+	switch(mode)
+	{
+	case REMOVE:
+		result = result.replace(targetField.getText(), "");
+		break;
+	case REPLACE:
+		result = result.replace(targetField.getText(), replacementField.getText());
+		break;
+	case APPEND:
+		result += targetField.getText();
+		break;
+	case PREPEND:
+		result = targetField.getText() + result;
+		break;
+	default:
+		break;
+	}
+	
+	result += fileExtension;
+	return result;
 }
 
 }
